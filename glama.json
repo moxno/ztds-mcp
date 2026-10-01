@@ -1,0 +1,21 @@
+{
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": ["moxno"],
+  "name": "ztds-mcp",
+  "description": "Zero-Trust Data Sanitization (ZTDS RFC v1.0) reference MCP server. Local in-memory PII de-identification, secrets masking, and deterministic surrogate tokenization.",
+  "type": "mcp_server",
+  "status": "stable",
+  "transport": ["stdio"],
+  "keywords": [
+    "mcp",
+    "security",
+    "privacy",
+    "pii-redactor",
+    "zero-trust",
+    "ztds",
+    "secrets-scanner",
+    "deterministic-tokenization",
+    "gdpr",
+    "hipaa"
+  ]
+}
