@@ -28,7 +28,28 @@ Runs **100% locally** with zero network calls, zero external subprocessors, zero
 
 ## Installation & Client Configuration
 
-### 1. Claude Desktop
+### 1. Claude Code (CLI & IDE)
+
+Add via the Claude Code CLI:
+
+```bash
+claude mcp add ztds -- npx -y ztds-mcp
+```
+
+Or add to your project `.mcp.json` for team-shared Claude Code sessions:
+
+```json
+{
+  "mcpServers": {
+    "ztds": {
+      "command": "npx",
+      "args": ["-y", "ztds-mcp"]
+    }
+  }
+}
+```
+
+### 2. Claude Desktop
 
 Add to your `claude_desktop_config.json`:
 
@@ -48,7 +69,7 @@ Config file locations:
 - Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 - Linux: `~/.config/Claude/claude_desktop_config.json`
 
-### 2. Cursor IDE
+### 3. Cursor IDE
 
 Add to your Cursor MCP settings (`Settings` -> `Features` -> `MCP` -> `Add New MCP Server`):
 - **Name**: `ztds`
@@ -68,7 +89,7 @@ Or add to `.cursor/mcp.json` in your workspace:
 }
 ```
 
-### 3. Windsurf / Codeium
+### 4. Windsurf / Codeium
 
 Add to `~/.codeium/windsurf/mcp_config.json`:
 
