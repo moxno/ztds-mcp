@@ -6,12 +6,12 @@
     "url": "https://github.com/moxno/ztds-mcp",
     "source": "github"
   },
-  "version": "1.0.0",
+  "version": "1.2.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "ztds-mcp",
-      "version": "1.0.0",
+      "version": "1.2.2",
       "transport": {
         "type": "stdio"
       }

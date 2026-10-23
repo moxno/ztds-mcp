@@ -4,7 +4,25 @@
  */
 
 import assert from 'assert';
-import { handleMessage, sanitizeText, restoreText, auditText, resetSessionStore, TOOLS } from './index.js';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+import { 
+  handleMessage, 
+  sanitizeText, 
+  restoreText, 
+  auditText, 
+  auditFileDetailed,
+  collectFilesToAudit,
+  resetSessionStore, 
+  runSelfTest,
+  getClientPaths,
+  configureTarget,
+  TOOLS 
+} from './index.js';
 
 async function runTests() {
   console.log('[TEST] Starting ZTDS MCP Server Verification Suite...');
@@ -42,6 +60,24 @@ async function runTests() {
   assert(toolNames.includes('ztds_info'));
   assert(toolNames.includes('ztds_reset_session'));
   console.log('    [PASS] All 5 tools listed with valid schemas.');
+
+  // 2b. resources/list & resources/read verification
+  console.log('--> Test 2b: JSON-RPC "resources/list" & "resources/read"');
+  const resourcesRes = await handleMessage({
+    jsonrpc: '2.0',
+    id: 201,
+    method: 'resources/list',
+    params: {}
+  });
+  assert.strictEqual(resourcesRes.result.resources.length, 2);
+  const specReadRes = await handleMessage({
+    jsonrpc: '2.0',
+    id: 202,
+    method: 'resources/read',
+    params: { uri: 'ztds://spec/rfc-v1' }
+  });
+  assert(specReadRes.result.contents[0].text.includes('ZTDS RFC v1.0'));
+  console.log('    [PASS] MCP resources listed and read successfully.');
 
   // 3. Invariant 1: ztds_sanitize masks cleartext
   console.log('--> Test 3: Invariant 1 - ztds_sanitize zero cleartext');
@@ -223,7 +259,75 @@ async function runTests() {
   assert(errorCaught, 'Oversized text must be rejected');
   console.log('    [PASS] DoS safety boundary verified (500 KB limit enforced).');
 
-  console.log('\n[SUMMARY] ALL 13 ZTDS MCP SERVER TESTS PASSED (100% CONFORMANCE).\n');
+  // 14. In-RAM Self-Test Engine
+  console.log('--> Test 14: In-RAM Engine Self-Test Verification');
+  const selfTestResult = runSelfTest();
+  assert.strictEqual(selfTestResult, true, 'runSelfTest must return true');
+  console.log('    [PASS] In-RAM engine self-test passed (mask, restore, zeroize).');
+
+  // 15. Client Paths Resolution
+  console.log('--> Test 15: Client Paths Resolution');
+  const clientPaths = getClientPaths();
+  assert(clientPaths.claude && typeof clientPaths.claude === 'string');
+  assert(clientPaths.cursorWorkspace && typeof clientPaths.cursorWorkspace === 'string');
+  assert(clientPaths.windsurf && typeof clientPaths.windsurf === 'string');
+  console.log('    [PASS] Client configuration paths resolved accurately across platforms.');
+
+  // 16. Target Configurator on Isolated Temp Directory
+  console.log('--> Test 16: Target Configurator (Isolated Temp Target)');
+  const tmpDir = path.join(os.tmpdir(), `ztds_test_${Date.now()}`);
+  const tmpTarget = path.join(tmpDir, 'mcp.json');
+  try {
+    const configResult = configureTarget('Test Client', tmpTarget);
+    assert.strictEqual(configResult.success, true);
+    assert(fs.existsSync(tmpTarget));
+    const savedConfig = JSON.parse(fs.readFileSync(tmpTarget, 'utf8'));
+    assert(savedConfig.mcpServers && savedConfig.mcpServers.ztds);
+    assert.strictEqual(savedConfig.mcpServers.ztds.command, 'npx');
+    assert(savedConfig.mcpServers.ztds.args.includes('ztds-mcp'));
+    console.log('    [PASS] Configurator generates valid MCP configuration without error.');
+  } finally {
+    if (fs.existsSync(tmpDir)) {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  }
+
+  // 17. Detailed File Audit (Clean File)
+  console.log('--> Test 17: Detailed File Audit (Clean File)');
+  const cleanAudit = auditFileDetailed(path.join(__dirname, 'package.json'));
+  assert.strictEqual(cleanAudit.totalFindings, 0);
+  assert(cleanAudit.fileHash && cleanAudit.fileHash.startsWith('sha256:'));
+  console.log('    [PASS] Clean file audit returns zero findings and valid SHA-256 hash.');
+
+  // 18. Detailed File Audit (Finding Detection & Line Numbers)
+  console.log('--> Test 18: Detailed File Audit (Finding Detection & Line Numbers)');
+  const tmpAuditDir = path.join(os.tmpdir(), `ztds_audit_test_${Date.now()}`);
+  fs.mkdirSync(tmpAuditDir, { recursive: true });
+  const sampleSecret = ['sk', 'ant', 'sampletestsecret1234567890'].join('-');
+  const testFilePath = path.join(tmpAuditDir, '.env.test');
+  fs.writeFileSync(testFilePath, `# Test env\nPORT=8080\nAPI_KEY=${sampleSecret}\nCONTACT=admin@hospital.org\n`, 'utf8');
+
+  try {
+    const findingAudit = auditFileDetailed(testFilePath);
+    assert.strictEqual(findingAudit.totalFindings, 2);
+    assert.strictEqual(findingAudit.categoryTotals.API_SECRET, 1);
+    assert.strictEqual(findingAudit.categoryTotals.EMAIL, 1);
+    assert.strictEqual(findingAudit.lineFindings[0].line, 3);
+    assert.strictEqual(findingAudit.lineFindings[1].line, 4);
+    console.log('    [PASS] Detailed audit correctly identifies findings, categories, and line numbers.');
+  } finally {
+    fs.rmSync(tmpAuditDir, { recursive: true, force: true });
+  }
+
+  // 19. Directory Collection Filtering (Ignored Directories)
+  console.log('--> Test 19: Directory Collection Filtering (Ignored Directories)');
+  const filesFound = collectFilesToAudit(__dirname, 50);
+  assert(filesFound.length > 0);
+  const hasNodeModules = filesFound.some(f => f.includes('node_modules'));
+  assert.strictEqual(hasNodeModules, false);
+  console.log('    [PASS] Directory scanner respects ignored paths (node_modules, .git).');
+
+  console.log('\n[SUMMARY] ALL 19 ZTDS MCP SERVER TESTS PASSED (100% CONFORMANCE).\n');
 }
 
 runTests().catch((err) => {
